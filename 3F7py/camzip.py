@@ -6,7 +6,7 @@ from json import dump
 from sys import argv
 
 
-def camzip(method, filename):
+def camzip(method, filename, probability_on_the_go=False):
 
     with open(filename, 'rb') as fin:
         x = fin.read()
@@ -14,7 +14,7 @@ def camzip(method, filename):
     frequencies = dict([(key, len(list(group))) for key, group in groupby(sorted(x))])
     n = sum([frequencies[a] for a in frequencies])
     p = dict([(a,frequencies[a]/n) for a in frequencies])
-
+    
     if method == 'huffman' or method == 'shannon_fano':
         if (method == 'huffman'):
             xt = huffman(p)
@@ -26,7 +26,7 @@ def camzip(method, filename):
         y = vl_encode(x, c)
 
     elif method == 'arithmetic':
-        y = arithmetic.encode(x,p)
+        y = arithmetic.encode(x,p,probability_on_the_go)
 
     else:
         raise NameError('Compression method %s unknown' % method)

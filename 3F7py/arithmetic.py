@@ -2,30 +2,31 @@ from math import floor, ceil
 from sys import stdout as so
 from bisect import bisect
 from pprint import pprint
+from utils import *
 
-def encode(x, p):
+
+def encode(x, p, probability_on_the_go=False):
 
     precision = 32
     one = int(2**precision - 1)
     quarter = int(ceil(one/4))
     half = 2*quarter
     threequarters = 3*quarter
-
-    # p = dict([(a,p[a]) for a in p if p[a]>0]) # eliminate zero probabilities
-    p = {a: p[a] for a in p if p[a] > 0}
-    # Compute cumulative probability as in Shannon-Fano
-    cumulative_prob = 0
-    f = [cumulative_prob]
-    for key in p:
-        cumulative_prob += p[key]
-        f.append(cumulative_prob)
-    f.pop()
-    f = dict([(a,mf) for a,mf in zip(p,f)])
     
+    if not probability_on_the_go:
+        # p = dict([(a,p[a]) for a in p if p[a]>0]) # eliminate zero probabilities
+        p = {a: p[a] for a in p if p[a] > 0}
+        # Compute cumulative probability as in Shannon-Fano
+        f = prob_to_cumulative_prob(p)
+    else:
+        freqs = initialize_freqs(list(p.keys()))
+        p = freq_to_prob(freqs)
+        p = {key: value for key, value in p.items() if value > 0}
+        f = prob_to_cumulative_prob(p)
+        
     y = [] # initialise output list
     lo,hi = 0,one # initialise lo and hi to be [0,1.0)
     straddle = 0 # initialise the straddle counter to 0
-
     
     for k in range(len(x)): # for every symbol
 
@@ -48,7 +49,6 @@ def encode(x, p):
         lo = lo + int(ceil(lohi_range * f[x[k]]))
         hi = lo + int(floor(lohi_range * p[x[k]]))
         
-
         if (lo == hi):
             raise NameError('Zero interval!')
 
@@ -91,6 +91,12 @@ def encode(x, p):
             hi = hi * 2 + 1 # multiply hi by 2 and add 1 (I DON'T KNOW WHY +1 IS NECESSARY BUT IT IS. THIS IS MAGIC.
                 # A BOX OF CHOCOLATES FOR ANYONE WHO GIVES ME A WELL ARGUED REASON FOR THIS... It seems
                 # to solve a minor precision problem.)
+        if probability_on_the_go:
+            freqs = {key: value * (k+len(p)) for key, value in p.items()}
+            freqs = freq_on_the_go(freqs, x[k])
+            p = freq_to_prob(freqs)
+            f = prob_to_cumulative_prob(p)
+
 
     # termination bits
     # after processing all input symbols, flush any bits still in the 'straddle' pipeline
@@ -103,7 +109,7 @@ def encode(x, p):
         y.extend([0] * straddle)
     return(y)
 
-def decode(y,p,n):
+def decode(y,p,n, probability_on_the_go=False):
     precision = 32
     one = int(2**precision - 1)
     quarter = int(ceil(one/4))
@@ -111,12 +117,21 @@ def decode(y,p,n):
     threequarters = 3*quarter
 
     p = dict([(a,p[a]) for a in p if p[a]>0])
-    
     alphabet = list(p)
-    f = [0]
-    for a in p:
-        f.append(f[-1]+p[a])
-    f.pop()
+    
+    if not probability_on_the_go:
+        f = [0]
+        for a in p:
+            f.append(f[-1]+p[a])
+        f.pop()
+    else:
+        freqs = initialize_freqs(alphabet)
+        p = freq_to_prob(freqs)
+        p = {key: value for key, value in p.items() if value>0}
+        f = [0]
+        for value in p.values():
+            f.append(f[-1]+value)
+        f.pop()
 
     p = list(p.values())
 
@@ -132,7 +147,6 @@ def decode(y,p,n):
         if k % 100 == 0:
             so.write('Arithmetic decoded %d%%    \r' % int(floor(k/n*100)))
             so.flush()
-
 
         lohi_range = hi - lo + 1
         # This is an essential subtelty: the slowest part of the decoder is figuring out
@@ -169,6 +183,15 @@ def decode(y,p,n):
             position += 1
             if position == len(y):
                 raise NameError('Unable to decompress')
+                
+        if probability_on_the_go:
+            freqs = {key: value * (k+len(p)) for key, value in zip(alphabet, p)}
+            freqs = freq_on_the_go(freqs, x[k])
+            p = freq_to_prob(freqs)
+            f = [0]
+            for p_value in p.values():
+                f.append(f[-1]+p_value)
+            f.pop()
+            p = list(p.values())
 
     return(x)
-    
