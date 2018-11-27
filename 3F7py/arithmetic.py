@@ -18,11 +18,13 @@ def encode(x, p, probability_on_the_go=False):
         p = {a: p[a] for a in p if p[a] > 0}
         # Compute cumulative probability as in Shannon-Fano
         f = prob_to_cumulative_prob(p)
-    else:
+    elif probability_on_the_go:
         freqs = initialize_freqs(list(p.keys()))
         p = freq_to_prob(freqs)
         p = {key: value for key, value in p.items() if value > 0}
         f = prob_to_cumulative_prob(p)
+    else:
+        raise NotImplementedError
         
     y = [] # initialise output list
     lo,hi = 0,one # initialise lo and hi to be [0,1.0)
@@ -91,7 +93,10 @@ def encode(x, p, probability_on_the_go=False):
             hi = hi * 2 + 1 # multiply hi by 2 and add 1 (I DON'T KNOW WHY +1 IS NECESSARY BUT IT IS. THIS IS MAGIC.
                 # A BOX OF CHOCOLATES FOR ANYONE WHO GIVES ME A WELL ARGUED REASON FOR THIS... It seems
                 # to solve a minor precision problem.)
-        if probability_on_the_go:
+                
+        if not probability_on_the_go:
+            pass
+        else:
             freqs = {key: value * (k+len(p)) for key, value in p.items()}
             freqs = freq_on_the_go(freqs, x[k])
             p = freq_to_prob(freqs)
@@ -108,6 +113,7 @@ def encode(x, p, probability_on_the_go=False):
         y.append(1) # output a 1 followed by "straddle" zeros
         y.extend([0] * straddle)
     return(y)
+
 
 def decode(y,p,n, probability_on_the_go=False):
     precision = 32
@@ -184,7 +190,9 @@ def decode(y,p,n, probability_on_the_go=False):
             if position == len(y):
                 raise NameError('Unable to decompress')
                 
-        if probability_on_the_go:
+        if not probability_on_the_go:
+            pass
+        else:
             freqs = {key: value * (k+len(p)) for key, value in zip(alphabet, p)}
             freqs = freq_on_the_go(freqs, x[k])
             p = freq_to_prob(freqs)

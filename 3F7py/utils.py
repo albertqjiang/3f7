@@ -23,3 +23,11 @@ def prob_to_cumulative_prob(probs):
     f.pop()
     f = dict([(a,mf) for a,mf in zip(probs,f)])
     return f
+
+
+def n_gram_frequency(text, n=1):
+    n_freq = dict()
+    for index in range(len(text)-n+1):
+        gram = ''.join(text[index:index+n])
+        n_freq[gram] = n_freq.get(gram, 0) + 1
+    return n_freq

@@ -5,7 +5,7 @@ from json import load
 from sys import argv
 
 
-def camunzip(filename):
+def camunzip(filename, probability_on_the_go=False):
     if (filename[-1] == 'h'):
         method = 'huffman'
     elif (filename[-1] == 's'):
@@ -36,7 +36,7 @@ def camunzip(filename):
         x = vl_decode(y, xt)
 
     elif method == 'arithmetic':
-        x = arithmetic.decode(y,p,n)
+        x = arithmetic.decode(y,p,n, probability_on_the_go)
 
     else:
         raise NameError('This will never happen (famous last words)')
