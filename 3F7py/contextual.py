@@ -16,7 +16,7 @@ def encode(raw_text, n_gram_freqs):
     conditional_probs = joint_to_cond_prob(n_gram_freqs)
     cumulative_probs = dict()
     for key, value in conditional_probs.items():
-        condition = key.split('|')[1]
+        condition = key.split('<con>')[1]
         cumulative_probs[condition] = cumulative_probs.get(condition, dict())
         cumulative_probs[condition][key] = value
 
@@ -46,10 +46,10 @@ def encode(raw_text, n_gram_freqs):
         # the offset from the new 'lo' to the new 'hi'
         if k >= highest_gram - 1:
             condition = ''.join(raw_text[k-highest_gram+1:k])
-            reference = raw_text[k] + '|' + condition
+            reference = raw_text[k] + '<con>' + condition
         else:
             condition = raw_text[:k].rjust(highest_gram-1)
-            reference = raw_text[k] + '|' + condition
+            reference = raw_text[k] + '<con>' + condition
 
         lo = lo + int(ceil(lohi_range * cumulative_probs[condition][reference]))
         hi = lo + int(floor(lohi_range * conditional_probs[reference]))
@@ -142,10 +142,10 @@ def decode(y, source_length, conditional_probs, cumulative_probs, highest_gram):
             condition = ''.join(x[:k]).rjust(highest_gram-1)
 
         a = bisect(list(cumulative_probs[condition].values()), (value - lo) / lohi_range) - 1
-        x[k] = list(cumulative_probs[condition].keys())[a].split('|')[0]  # output alphabet[a]
+        x[k] = list(cumulative_probs[condition].keys())[a].split('<con>')[0]  # output alphabet[a]
 
-        lo = lo + int(ceil(cumulative_probs[condition][''.join((x[k], '|', condition))] * lohi_range))
-        hi = lo + int(floor(conditional_probs[''.join((x[k], '|', condition))] * lohi_range))
+        lo = lo + int(ceil(cumulative_probs[condition][''.join((x[k], '<con>', condition))] * lohi_range))
+        hi = lo + int(floor(conditional_probs[''.join((x[k], '<con>', condition))] * lohi_range))
 
         if lo == hi:
             raise NameError('Zero interval!')
@@ -174,11 +174,27 @@ def decode(y, source_length, conditional_probs, cumulative_probs, highest_gram):
     return x
 
 
+def full_encode(text_to_encode, n_gram=2):
+    padded_text = ''.join([' ' for _ in range(n_gram)]) + text_to_encode
+    alphabet = set(letter for letter in padded_text)
+    alphabet = sorted(list(alphabet))
+    print(alphabet)
+
+    n_gram_freqs = {n: n_gram_frequency(padded_text, n=n) for n in range(1, n_gram+1)}
+    encoded, conditional_probs, cumulative_probs, highest_gram = encode(text_to_encode, n_gram_freqs)
+    decoded = decode(encoded,
+                         source_length=len(text_to_encode),
+                         conditional_probs=conditional_probs,
+                         cumulative_probs=cumulative_probs,
+                         highest_gram=highest_gram)
+    return encoded, decoded, conditional_probs
+
+
 def joint_to_cond_prob(n_gram_probs):
     cond_probs = dict()
     highest_degree = max(list(n_gram_probs.keys()))
     joint_probs = n_gram_probs[highest_degree]
     gram_probs = n_gram_probs[highest_degree-1]
     for key, value in joint_probs.items():
-        cond_probs[key[-1] + "|" + key[:-1]] = value / gram_probs[key[:-1]]
+        cond_probs[key[-1] + "<con>" + key[:-1]] = value / gram_probs[key[:-1]]
     return cond_probs

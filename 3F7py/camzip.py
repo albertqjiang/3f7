@@ -1,5 +1,6 @@
 from trees import *
 from vl_codes import *
+import contextual as context
 import arithmetic 
 from itertools import groupby
 from json import dump
