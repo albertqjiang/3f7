@@ -2,16 +2,25 @@ from math import floor, ceil
 from sys import stdout as so
 from bisect import bisect
 from utils import *
+import itertools
+from pprint import pprint
 
 
-def encode(raw_text, n_gram_freqs):
+def encode(raw_text, alphabet, n_gram):
     precision = 32
     one = int(2 ** precision - 1)
     quarter = int(ceil(one / 4))
     half = 2 * quarter
     threequarters = 3 * quarter
 
-    highest_gram = max(list(n_gram_freqs.keys()))
+    alphabet_size = len(alphabet)
+    n_gram_freqs = dict()
+
+    # Initialize n_gram frequency
+    for degree in range(1, n_gram+1):
+        n_gram_freqs[degree] = dict()
+        for pro in itertools.product(alphabet, repeat=degree):
+            n_gram_freqs[degree][''.join(pro)] = alphabet_size**(n_gram-degree)
 
     conditional_probs = joint_to_cond_prob(n_gram_freqs)
     cumulative_probs = dict()
@@ -44,11 +53,12 @@ def encode(raw_text, n_gram_freqs):
         # floor). This will require two instructions. Note that we start computing
         # the new 'lo', then compute the new 'hi' using the scaled probability as
         # the offset from the new 'lo' to the new 'hi'
-        if k >= highest_gram - 1:
-            condition = ''.join(raw_text[k-highest_gram+1:k])
+        if k >= n_gram - 1:
+            condition = ''.join(raw_text[k-n_gram+1:k])
             reference = raw_text[k] + '<con>' + condition
+
         else:
-            condition = raw_text[:k].rjust(highest_gram-1)
+            condition = raw_text[:k].rjust(n_gram-1)
             reference = raw_text[k] + '<con>' + condition
 
         lo = lo + int(ceil(lohi_range * cumulative_probs[condition][reference]))
@@ -97,6 +107,17 @@ def encode(raw_text, n_gram_freqs):
             # A BOX OF CHOCOLATES FOR ANYONE WHO GIVES ME A WELL ARGUED REASON FOR THIS... It seems
             # to solve a minor precision problem.)
 
+        n_gram_freqs[n_gram][condition + raw_text[k]] = n_gram_freqs[n_gram].get(condition + raw_text[k], 0) + 1
+        conditional_probs = joint_to_cond_prob(n_gram_freqs)
+        cumulative_probs = dict()
+        for key, value in conditional_probs.items():
+            raw_condition = key.split('<con>')[1]
+            cumulative_probs[raw_condition] = cumulative_probs.get(raw_condition, dict())
+            cumulative_probs[raw_condition][key] = value
+
+        for raw_condition, probs in cumulative_probs.items():
+            cumulative_probs[raw_condition] = prob_to_cumulative_prob(probs)
+
     # termination bits
     # after processing all input symbols, flush any bits still in the 'straddle' pipeline
     straddle += 1  # adding 1 to straddle for "good measure" (ensures prefix-freeness)
@@ -106,15 +127,34 @@ def encode(raw_text, n_gram_freqs):
     else:
         y.append(1)  # output a 1 followed by "straddle" zeros
         y.extend([0] * straddle)
-    return y, conditional_probs, cumulative_probs, highest_gram
+    return y, conditional_probs, cumulative_probs, n_gram
 
 
-def decode(y, source_length, conditional_probs, cumulative_probs, highest_gram):
+def decode(y, source_length, alphabet, n_gram):
     precision = 32
     one = int(2 ** precision - 1)
     quarter = int(ceil(one / 4))
     half = 2 * quarter
     threequarters = 3 * quarter
+
+    alphabet_size = len(alphabet)
+    n_gram_freqs = dict()
+
+    # Initialize n_gram frequency
+    for degree in range(1, n_gram + 1):
+        n_gram_freqs[degree] = dict()
+        for pro in itertools.product(alphabet, repeat=degree):
+            n_gram_freqs[degree][''.join(pro)] = alphabet_size ** (n_gram - degree)
+
+    conditional_probs = joint_to_cond_prob(n_gram_freqs)
+    cumulative_probs = dict()
+    for key, value in conditional_probs.items():
+        condition = key.split('<con>')[1]
+        cumulative_probs[condition] = cumulative_probs.get(condition, dict())
+        cumulative_probs[condition][key] = value
+
+    for condition, probs in cumulative_probs.items():
+        cumulative_probs[condition] = prob_to_cumulative_prob(probs)
 
     y.extend(precision * [0])  # dummy zeros to prevent index out of bound errors
     x = source_length * [0]  # initialise all zeros
@@ -136,10 +176,10 @@ def decode(y, source_length, conditional_probs, cumulative_probs, highest_gram):
         # by simple looping and comparing. Here we use Python's "bisect" function that
         # implements a binary search and is 100 times more efficient. Try
         # for a = [a for a in f if f[a]<(value-lo)/lohi_range)][-1] for a MUCH slower solution.
-        if k >= highest_gram - 1:
-            condition = ''.join(x[k-highest_gram+1:k])
+        if k >= n_gram - 1:
+            condition = ''.join(x[k - n_gram + 1:k])
         else:
-            condition = ''.join(x[:k]).rjust(highest_gram-1)
+            condition = ''.join(x[:k]).rjust(n_gram - 1)
 
         a = bisect(list(cumulative_probs[condition].values()), (value - lo) / lohi_range) - 1
         x[k] = list(cumulative_probs[condition].keys())[a].split('<con>')[0]  # output alphabet[a]
@@ -171,6 +211,17 @@ def decode(y, source_length, conditional_probs, cumulative_probs, highest_gram):
             if position == len(y):
                 raise NameError('Unable to decompress')
 
+        n_gram_freqs[n_gram][condition + x[k]] = n_gram_freqs[n_gram].get(condition + x[k], 0) + 1
+        conditional_probs = joint_to_cond_prob(n_gram_freqs)
+        cumulative_probs = dict()
+        for cond_key, cond_value in conditional_probs.items():
+            raw_condition = cond_key.split('<con>')[1]
+            cumulative_probs[raw_condition] = cumulative_probs.get(raw_condition, dict())
+            cumulative_probs[raw_condition][cond_key] = cond_value
+
+        for raw_condition, probs in cumulative_probs.items():
+            cumulative_probs[raw_condition] = prob_to_cumulative_prob(probs)
+
     return x
 
 
@@ -180,13 +231,12 @@ def full_encode(text_to_encode, n_gram=2):
     alphabet = sorted(list(alphabet))
     print(alphabet)
 
-    n_gram_freqs = {n: n_gram_frequency(padded_text, n=n) for n in range(1, n_gram+1)}
-    encoded, conditional_probs, cumulative_probs, highest_gram = encode(text_to_encode, n_gram_freqs)
+    # n_gram_freqs = {n: n_gram_frequency(padded_text, n=n) for n in range(1, n_gram+1)}
+    encoded, conditional_probs, cumulative_probs, highest_gram = encode(text_to_encode, alphabet, n_gram)
     decoded = decode(encoded,
-                         source_length=len(text_to_encode),
-                         conditional_probs=conditional_probs,
-                         cumulative_probs=cumulative_probs,
-                         highest_gram=highest_gram)
+                     source_length=len(text_to_encode),
+                     alphabet=alphabet,
+                     n_gram=highest_gram)
     return encoded, decoded, conditional_probs
 
 
