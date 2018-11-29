@@ -1,7 +1,6 @@
 from math import floor, ceil
 from sys import stdout as so
 from bisect import bisect
-from pprint import pprint
 from utils import *
 
 
@@ -117,8 +116,6 @@ def decode(y, source_length, conditional_probs, cumulative_probs, highest_gram):
     half = 2 * quarter
     threequarters = 3 * quarter
 
-    alphabet = [key.split('|')[0] for key in conditional_probs.keys()]
-
     y.extend(precision * [0])  # dummy zeros to prevent index out of bound errors
     x = source_length * [0]  # initialise all zeros
 
@@ -146,6 +143,9 @@ def decode(y, source_length, conditional_probs, cumulative_probs, highest_gram):
 
         a = bisect(list(cumulative_probs[condition].values()), (value - lo) / lohi_range) - 1
         x[k] = list(cumulative_probs[condition].keys())[a].split('|')[0]  # output alphabet[a]
+
+        lo = lo + int(ceil(cumulative_probs[condition][''.join((x[k], '|', condition))] * lohi_range))
+        hi = lo + int(floor(conditional_probs[''.join((x[k], '|', condition))] * lohi_range))
 
         if lo == hi:
             raise NameError('Zero interval!')

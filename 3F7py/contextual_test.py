@@ -1,8 +1,7 @@
 from utils import *
-from pprint import pprint
 import contextual as con
 
-f = open('10.txt.utf-8')
+f = open('10.txt.utf-8', encoding='utf-8-sig')
 bible = f.read()
 f.close()
 print(bible[555:925])
@@ -18,8 +17,10 @@ def full_encode(text_to_encode, n_gram=2):
 
     n_gram_freqs = {n: n_gram_frequency(padded_text, n=n) for n in range(1, n_gram+1)}
     encoded, conditional_probs, cumulative_probs, highest_gram = con.encode(text_to_encode, n_gram_freqs)
-    decoded = con.decode(encoded, source_length=len(text_to_encode),
-                         conditional_probs=conditional_probs, cumulative_probs=cumulative_probs,
+    decoded = con.decode(encoded,
+                         source_length=len(text_to_encode),
+                         conditional_probs=conditional_probs,
+                         cumulative_probs=cumulative_probs,
                          highest_gram=highest_gram)
     return encoded, decoded
 
