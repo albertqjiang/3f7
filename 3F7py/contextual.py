@@ -107,7 +107,12 @@ def encode(raw_text, alphabet, n_gram):
             # A BOX OF CHOCOLATES FOR ANYONE WHO GIVES ME A WELL ARGUED REASON FOR THIS... It seems
             # to solve a minor precision problem.)
 
-        n_gram_freqs[n_gram][condition + raw_text[k]] = n_gram_freqs[n_gram].get(condition + raw_text[k], 0) + 1
+        for degree in range(1, n_gram+1):
+            if degree == 1:
+                n_gram_freqs[degree][raw_text[k]] = n_gram_freqs[degree].get(raw_text[k], 0) + 1
+            else:
+                n_gram_freqs[degree][condition[-(degree-1):] + raw_text[k]] = \
+                    n_gram_freqs[degree].get(condition[-(degree-1):] + raw_text[k], 0) + 1
         conditional_probs = joint_to_cond_prob(n_gram_freqs)
         cumulative_probs = dict()
         for key, value in conditional_probs.items():
@@ -211,7 +216,12 @@ def decode(y, source_length, alphabet, n_gram):
             if position == len(y):
                 raise NameError('Unable to decompress')
 
-        n_gram_freqs[n_gram][condition + x[k]] = n_gram_freqs[n_gram].get(condition + x[k], 0) + 1
+        for degree in range(1, n_gram+1):
+            if degree == 1:
+                n_gram_freqs[degree][x[k]] = n_gram_freqs[degree].get(x[k], 0) + 1
+            else:
+                n_gram_freqs[degree][condition[-(degree-1):] + x[k]] = \
+                    n_gram_freqs[degree].get(condition[-(degree-1):] + x[k], 0) + 1
         conditional_probs = joint_to_cond_prob(n_gram_freqs)
         cumulative_probs = dict()
         for cond_key, cond_value in conditional_probs.items():

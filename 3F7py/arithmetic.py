@@ -18,13 +18,11 @@ def encode(x, p, probability_on_the_go=False):
         p = {a: p[a] for a in p if p[a] > 0}
         # Compute cumulative probability as in Shannon-Fano
         f = prob_to_cumulative_prob(p)
-    elif probability_on_the_go:
+    else:
         freqs = initialize_freqs(list(p.keys()))
         p = freq_to_prob(freqs)
         p = {key: value for key, value in p.items() if value > 0}
         f = prob_to_cumulative_prob(p)
-    else:
-        raise NotImplementedError
         
     y = [] # initialise output list
     lo,hi = 0,one # initialise lo and hi to be [0,1.0)
